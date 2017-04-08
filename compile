@@ -1,0 +1,14 @@
+#!/bin/bash
+# Copy all files to folder
+mkdir temp_compile
+cp udr.cpp temp_compile/
+cp src/* temp_compile/
+cp include/* temp_compile/
+
+# Compile
+cd temp_compile
+arm-linux-gnueabi-g++ udr.cpp CarControl.cpp ev3dev.cpp ClientSocketUDP.cpp Packet.cpp PckControllerButtonState.cpp PckCarData.cpp -o ../udr -lpthread -pthread -std=c++11
+cd ..
+
+# Remove all files
+rm -rf temp_compile
