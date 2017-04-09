@@ -3,10 +3,12 @@
 #include <thread>
 #include <iostream> // for temp debugging delete me
 
+// "echo \"tacho-motor\" > /sys/class/lego-port/port6/mode" run this command on the ev3 before the game starts, for the laser
+
 CarControl mCarControl;
 ClientSocketUDP mClientSocket;
 
-bool mPassedFinishLine;
+bool mPassedFinishLine, mOnFinishLine;
 char mCollectedMiniguns, mCollectedSpeedUps, mCollectedSlowDowns, mCurrentPowerUp, mPowerUpAmmo;
 
 
@@ -18,6 +20,7 @@ void HandlePacket(Packet& packet)
         std::cout << std::endl;*/
     if(packet.type == PT_CONTROLLER_BUTTON_STATE)
     {
+        // Button and trigger handling for driving and steering
         PckControllerButtonState p(packet.data);
         if(p.GetButtonState(p.dpadLeft))
 			mCarControl.Steer(mCarControl.right);
@@ -26,9 +29,6 @@ void HandlePacket(Packet& packet)
 		else
 			mCarControl.Steer(mCarControl.none);
 
-
-        //std::cout << "Left: " << (int)p.data[HEADERLENGTH + 4] << " Right: " << (int)p.data[HEADERLENGTH + 5] << std::endl;
-        //std::cout << "Left: " << (int)p.GetTriggerValues(p.left) << " Right: " << (int)p.GetTriggerValues(p.right) << std::endl;
         if(p.GetTriggerValues(p.right) > 10){
             mCarControl.SetDriveSpeedByTriggerValue(p.GetTriggerValues(p.right));
             mCarControl.Drive(mCarControl.forwards);
@@ -37,6 +37,15 @@ void HandlePacket(Packet& packet)
             mCarControl.Drive(mCarControl.backwards);
         }else
             mCarControl.Drive(mCarControl.stop);
+
+        // Button handling for power ups
+        if(mCurrentPowerUp != 0){
+            if(p.GetButtonState(p.a)){          // Button A to use power up
+
+            }else if(p.GetButtonState(p.b)){    // Button B to ditch power up
+                mCurrentPowerUp = 0;
+            }
+        }
     }
     else if(packet.type == PT_RESET_FINISHLINE_VAR) // Now we know that the server knows that we've passed the finish line
         mPassedFinishLine = false;
@@ -70,6 +79,10 @@ void Thread_SendInfo(){
     }
 }
 
+void UsePowerUp(int powerUp){
+
+}
+
 int main(){
     mCollectedMiniguns = 0;
     mCollectedSpeedUps = 0;
@@ -77,6 +90,7 @@ int main(){
     mCurrentPowerUp = 0;
     mPowerUpAmmo = 0;
     mPassedFinishLine = false;
+    mOnFinishLine = false;
     // Initialize socket
     if(mClientSocket.CreateSocket() != 0)
         return 1;
@@ -106,18 +120,22 @@ int main(){
             else
                 std::cout << n << "/" << HEADERLENGTH << " bytes sent..." << std::endl;*/
             std::cout << "Finish line set to true" << std::endl;
-            mPassedFinishLine = true;
+            //mPassedFinishLine = true;
+            //std::this_thread::sleep_for(std::chrono::seconds(2));
+            ev3dev::sound::play("~/drop/ENGINE3.WAV", true);
+            ev3dev::sound::play("~/drop/FlaskGone.wav", true);
             std::this_thread::sleep_for(std::chrono::seconds(2));
 		}
-		/*if(left)
+		if(left)
 		{
-			c.Steer(c.left);
+			mCarControl.FireMinigun(true);
 		}
 		else if(right)
 		{
-			c.Steer(c.right);
+		    std::cout << "Turning laser off" << std::endl;
+			mCarControl.FireMinigun(false);
 		}
-		else
+		/*else
 			c.Steer(c.none);
 
         if(up)
@@ -127,8 +145,39 @@ int main(){
         else
             c.Drive(c.stop);*/
 
+        int color_finishLine = mCarControl.red;
+
+        int colorLeft = mCarControl.GetColor(mCarControl.leftSensor);
+        int colorRight = mCarControl.GetColor(mCarControl.rightSensor);
+        // Check for finish line
+        if((colorLeft == color_finishLine || colorRight == color_finishLine) && !mOnFinishLine){
+            mOnFinishLine = true;
+            mPassedFinishLine = true;
+        }else if(colorLeft != color_finishLine && colorRight != color_finishLine)  // We are not on the finish line anymore
+            mOnFinishLine = false;  // The other var, mPassedFinishLine, is reset by the server application
+
+        int powerUpColor_minigun = mCarControl.blue;
+        int powerUpColor_speedUp = mCarControl.green;
+        int powerUpColor_slowDown = mCarControl.yellow;
+        // Check for power ups
+        if(mCurrentPowerUp == 0){   // Only check if we don't have a power up already
+            if(colorLeft == powerUpColor_minigun || colorRight == powerUpColor_minigun){
+                mCollectedMiniguns++;
+                mCurrentPowerUp = 1;
+            }else if(colorLeft == powerUpColor_speedUp || colorRight == powerUpColor_speedUp){
+                mCollectedSpeedUps++;
+                mCurrentPowerUp = 2;
+            }else if(colorLeft == powerUpColor_slowDown || colorRight == powerUpColor_slowDown){
+                // Slow down, this powerup is activated immediately
+                mCollectedSlowDowns++;
+                mCurrentPowerUp = 3;
+            }
+        }
+
+        // Check if player is hit
+
 		//printf ("up:%d down:%d left:%d right:%d enter:%d esc:%d\n", up, down, left, right, enter, escape);
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     // Close the socket
     mClientSocket.Close();
