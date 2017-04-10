@@ -6,7 +6,7 @@
 class PckCarData : public Packet
 {
     public:
-        PckCarData(char, char, float, bool, char, char, char);
+        PckCarData(char, char, float, bool, char, char, char, bool);
 
     protected:
 

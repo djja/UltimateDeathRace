@@ -8,9 +8,79 @@
 CarControl mCarControl;
 ClientSocketUDP mClientSocket;
 
-bool mPassedFinishLine, mOnFinishLine;
+bool mPassedFinishLine, mOnFinishLine, mIsSlowedByHit, mUsingPowerUp, mProgramRunning, mGameStarted, mPassedCheckpoint;    // Gamestarted var is used to reset the gamelogic vars
 char mCollectedMiniguns, mCollectedSpeedUps, mCollectedSlowDowns, mCurrentPowerUp, mPowerUpAmmo;
 
+void ResetGameLogic(){
+    mCollectedMiniguns = 0;
+    mCollectedSpeedUps = 0;
+    mCollectedSlowDowns = 0;
+    mCurrentPowerUp = 0;
+    mPowerUpAmmo = 0;
+    mPassedFinishLine = false;
+    mOnFinishLine = false;
+    mIsSlowedByHit = false;
+    mUsingPowerUp = false;
+    mCarControl.FireMinigun(false);
+    mCarControl.SetMaxSpeed_normal();
+    mCarControl.Drive(mCarControl.stop);
+    mCarControl.Steer(mCarControl.none);
+    mGameStarted = false;
+    mPassedCheckpoint = true;
+}
+
+void UsePowerUp(int powerUp){
+    if(powerUp == 1){   // Minigun
+        std::thread t([&] () {
+            mUsingPowerUp = true;
+            //int bullets = 10;
+            //while(bullets > 0){
+                mCarControl.FireMinigun(true);
+                // Play sound
+                //ev3dev::sound::play("~/drop/dsplasma.wav", true);
+                // Turn laser on
+
+                // wait
+                std::this_thread::sleep_for(std::chrono::seconds(10));
+                // Turn laser off
+                mCarControl.FireMinigun(false);
+                // wait
+
+                // decrement bullets
+                //ev3dev::sound::play("~/drop/dsplasma.wav", true);
+                //std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                //bullets--;
+            //}
+            mUsingPowerUp = false;
+            mCurrentPowerUp = 0;
+        });
+        t.detach();
+    }else if(powerUp == 2 && !mIsSlowedByHit){    // Boost
+        std::thread t([&] () {
+            mUsingPowerUp = true;
+            //std::cout << "FASTER" << std::endl;
+            mCarControl.SetMaxSpeed_boost();
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            mCarControl.SetMaxSpeed_normal();
+            //std::cout << "NORMAL" << std::endl;
+            mUsingPowerUp = false;
+            mCurrentPowerUp = 0;
+        });
+        t.detach();
+    }else if(powerUp == 3 && !mIsSlowedByHit){ // Slow down
+        std::thread t([&] () {
+            mUsingPowerUp = true;
+            //std::cout << "SLOWER" << std::endl;
+            mCarControl.SetMaxSpeed_slow();
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            mCarControl.SetMaxSpeed_normal();
+            //std::cout << "NORMAL" << std::endl;
+            mUsingPowerUp = false;
+            mCurrentPowerUp = 0;
+        });
+        t.detach();
+    }
+}
 
 void HandlePacket(Packet& packet)
 {
@@ -20,6 +90,7 @@ void HandlePacket(Packet& packet)
         std::cout << std::endl;*/
     if(packet.type == PT_CONTROLLER_BUTTON_STATE)
     {
+        mGameStarted = true;    // When we get input from the controller, we know the game has started
         // Button and trigger handling for driving and steering
         PckControllerButtonState p(packet.data);
         if(p.GetButtonState(p.dpadLeft))
@@ -39,9 +110,9 @@ void HandlePacket(Packet& packet)
             mCarControl.Drive(mCarControl.stop);
 
         // Button handling for power ups
-        if(mCurrentPowerUp != 0){
+        if(mCurrentPowerUp != 0 && mCurrentPowerUp != 3){
             if(p.GetButtonState(p.a)){          // Button A to use power up
-
+                UsePowerUp(mCurrentPowerUp);
             }else if(p.GetButtonState(p.b)){    // Button B to ditch power up
                 mCurrentPowerUp = 0;
             }
@@ -49,6 +120,8 @@ void HandlePacket(Packet& packet)
     }
     else if(packet.type == PT_RESET_FINISHLINE_VAR) // Now we know that the server knows that we've passed the finish line
         mPassedFinishLine = false;
+    else if(packet.type == PT_RESET_GAME_LOGIC)
+        ResetGameLogic();
 }
 
 void Thread_ReceiveInfo()
@@ -56,7 +129,7 @@ void Thread_ReceiveInfo()
     const int maxBufLength = 256;
     char readBuffer[maxBufLength];
     int n;
-    while(1){   // Fix this
+    while(mProgramRunning){   // Fix this
         n = mClientSocket.ReceiveDataFrom(readBuffer, maxBufLength);
         if(n < 1){
             std::cout << "n < 1" << std::endl;
@@ -72,18 +145,15 @@ void Thread_ReceiveInfo()
 }
 
 void Thread_SendInfo(){
-    while(1){
-        PckCarData p(mCurrentPowerUp, mPowerUpAmmo, mCarControl.GetCurrentSpeed(), mPassedFinishLine, mCollectedMiniguns, mCollectedSpeedUps, mCollectedSlowDowns);
+    while(mProgramRunning){
+        PckCarData p(mCurrentPowerUp, mPowerUpAmmo, mCarControl.GetCurrentSpeed(), mPassedFinishLine, mCollectedMiniguns, mCollectedSpeedUps, mCollectedSlowDowns, mGameStarted);
         mClientSocket.SendData(p);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 }
 
-void UsePowerUp(int powerUp){
-
-}
-
 int main(){
+    mProgramRunning = true;
     mCollectedMiniguns = 0;
     mCollectedSpeedUps = 0;
     mCollectedSlowDowns = 0;
@@ -91,6 +161,10 @@ int main(){
     mPowerUpAmmo = 0;
     mPassedFinishLine = false;
     mOnFinishLine = false;
+    mIsSlowedByHit = false;
+    mUsingPowerUp = false;
+    mGameStarted = false;
+    mPassedCheckpoint = true;
     // Initialize socket
     if(mClientSocket.CreateSocket() != 0)
         return 1;
@@ -103,6 +177,12 @@ int main(){
     bool up = false, down = false, left = false, right = false, enter = false,
 	escape = false;
 
+	int color_finishLine = mCarControl.white;
+    int color_checkpoint = mCarControl.black;
+    int powerUpColor_minigun = mCarControl.blue;
+    int powerUpColor_speedUp = mCarControl.green;
+    int powerUpColor_slowDown = mCarControl.red;
+
     while (escape == 0)
     {
 		up = ev3dev::button::up.pressed ();
@@ -112,73 +192,78 @@ int main(){
 		enter = ev3dev::button::enter.pressed ();
 		escape = ev3dev::button::back.pressed ();
 
-		if(enter){
-            /*Packet p(HEADERLENGTH, 99);
-            int n;
-            if((n = mClientSocket.SendData(p)) == HEADERLENGTH)
-                std::cout << "Full packet sent!" << std::endl;
-            else
-                std::cout << n << "/" << HEADERLENGTH << " bytes sent..." << std::endl;*/
-            std::cout << "Finish line set to true" << std::endl;
-            //mPassedFinishLine = true;
-            //std::this_thread::sleep_for(std::chrono::seconds(2));
-            ev3dev::sound::play("~/drop/ENGINE3.WAV", true);
-            ev3dev::sound::play("~/drop/FlaskGone.wav", true);
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-		}
-		if(left)
-		{
-			mCarControl.FireMinigun(true);
-		}
-		else if(right)
-		{
-		    std::cout << "Turning laser off" << std::endl;
-			mCarControl.FireMinigun(false);
-		}
-		/*else
-			c.Steer(c.none);
-
-        if(up)
-            c.Drive(c.forwards);
-        else if(down)
-            c.Drive(c.backwards);
-        else
-            c.Drive(c.stop);*/
-
-        int color_finishLine = mCarControl.red;
-
         int colorLeft = mCarControl.GetColor(mCarControl.leftSensor);
         int colorRight = mCarControl.GetColor(mCarControl.rightSensor);
+
+        // Check for checkpoint line
+        if((colorLeft == color_checkpoint || colorRight == color_checkpoint) && !mOnFinishLine){    // Should check if both sensors have seen the line
+            mOnFinishLine = true;
+            if(!mPassedCheckpoint){
+                ev3dev::sound::play("~/drop/CHKPOINT.WAV", false);
+                mPassedCheckpoint = true;
+            }else{
+                // Player should drive over finish line first
+                ev3dev::sound::play("~/drop/WRONGCP.WAV", false);
+            }
+
+        }else if(colorLeft != color_checkpoint && colorRight != color_checkpoint)
+            mOnFinishLine = false;
+
         // Check for finish line
         if((colorLeft == color_finishLine || colorRight == color_finishLine) && !mOnFinishLine){
             mOnFinishLine = true;
-            mPassedFinishLine = true;
+            if(mPassedCheckpoint){
+                ev3dev::sound::play("~/drop/CHKPOINT.WAV", false);
+                mPassedFinishLine = true;
+                mPassedCheckpoint = false;
+            }else{
+                // Player should drive over checkpoint first
+                ev3dev::sound::play("~/drop/WRONGCP.WAV", false);
+            }
         }else if(colorLeft != color_finishLine && colorRight != color_finishLine)  // We are not on the finish line anymore
             mOnFinishLine = false;  // The other var, mPassedFinishLine, is reset by the server application
 
-        int powerUpColor_minigun = mCarControl.blue;
-        int powerUpColor_speedUp = mCarControl.green;
-        int powerUpColor_slowDown = mCarControl.yellow;
+
         // Check for power ups
         if(mCurrentPowerUp == 0){   // Only check if we don't have a power up already
             if(colorLeft == powerUpColor_minigun || colorRight == powerUpColor_minigun){
+                ev3dev::sound::play("~/drop/FlaskGone.wav", false);
                 mCollectedMiniguns++;
                 mCurrentPowerUp = 1;
             }else if(colorLeft == powerUpColor_speedUp || colorRight == powerUpColor_speedUp){
+                ev3dev::sound::play("~/drop/FlaskGone.wav", false);
                 mCollectedSpeedUps++;
                 mCurrentPowerUp = 2;
-            }else if(colorLeft == powerUpColor_slowDown || colorRight == powerUpColor_slowDown){
+            }else if((colorLeft == powerUpColor_slowDown || colorRight == powerUpColor_slowDown) && !mIsSlowedByHit){
+                ev3dev::sound::play("~/drop/FlaskGone.wav", false);
                 // Slow down, this powerup is activated immediately
                 mCollectedSlowDowns++;
                 mCurrentPowerUp = 3;
+                UsePowerUp(3);
             }
         }
 
         // Check if player is hit
+        if(mCarControl.IsCarHit()){
+            if(!mIsSlowedByHit){
+                    std::cout << "I'm hit!" << std::endl;
+                mIsSlowedByHit = true;
+                std::thread t([&] () {
+                              //std::cout << "going slower" << std::endl;
+                    mCarControl.SetMaxSpeed_slow();
+                    std::this_thread::sleep_for(std::chrono::seconds(5));
+                    mCarControl.SetMaxSpeed_normal();
+                    mIsSlowedByHit = false;
+                    //std::cout << "going faster" << std::endl;
+                });
+                t.detach();
+            }
+        }
 
 		//printf ("up:%d down:%d left:%d right:%d enter:%d esc:%d\n", up, down, left, right, enter, escape);
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
+    mProgramRunning = false;
     // Close the socket
     mClientSocket.Close();
 }

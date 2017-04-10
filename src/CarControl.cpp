@@ -5,7 +5,7 @@ CarControl::CarControl() : mMotorLeft(MOTOR_LEFT), mMotorRight(MOTOR_RIGHT), mMo
     //ctor
     //mMotorMinigun.set_speed_sp(mMotorMinigun.max_speed());
     //std::system("echo \"tacho-motor\" > /sys/class/lego-port/port6/mode");    // port6 is outC, this is our laser
-    mCurrentMaxDriveSpeed = MOTORSPEED_DRIVING_MAX;
+    SetMaxSpeed_normal();
     mMotorMinigun.set_stop_action("brake");
     mMotorMinigun.set_speed_sp(mMotorMinigun.max_speed());
 }
@@ -67,6 +67,11 @@ int CarControl::GetColor(ColorSensorId id){
     else if(id == rightSensor)
         return mColorSensorRight.color();
     else return mColorSensorBack.color();
+}
+
+int CarControl::IsCarHit(){
+    return mColorSensorBack.ambient_light_intensity() > 30 ? true : false;
+    //return mColorSensorBack.color() > 90 ? true : false;
 }
 
 void CarControl::FireMinigun(bool value){

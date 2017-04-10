@@ -7,6 +7,7 @@
 #define PT_CONTROLLER_BUTTON_STATE 0
 #define PT_CAR_DATA 1
 #define PT_RESET_FINISHLINE_VAR 2
+#define PT_RESET_GAME_LOGIC 3
 
 class Packet
 {

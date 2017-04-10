@@ -26,7 +26,7 @@ class CarControl
 {
     public:
         int mDriveSpeed;    // Can't this be private?
-        int mCurrentMaxDriveSpeed;
+        int mCurrentMaxDriveSpeed;  // What about this?
 
         CarControl();
         virtual ~CarControl();
@@ -61,8 +61,13 @@ class CarControl
         void SetDriveSpeedByTriggerValue(char);
         void FireMinigun(bool);
 
+        void SetMaxSpeed_normal() { mCurrentMaxDriveSpeed = (MOTORSPEED_DRIVING_MAX / 10) * 7; }
+        void SetMaxSpeed_boost() { mCurrentMaxDriveSpeed = MOTORSPEED_DRIVING_MAX; }
+        void SetMaxSpeed_slow() { mCurrentMaxDriveSpeed = (MOTORSPEED_DRIVING_MAX / 10) * 4.5; }
+
         float GetCurrentSpeed();
         int GetColor(ColorSensorId);
+        int IsCarHit();
 
     protected:
 

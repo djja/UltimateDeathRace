@@ -29,11 +29,13 @@
 		<Unit filename="include/ClientSocketUDP.h" />
 		<Unit filename="include/Packet.h" />
 		<Unit filename="include/PacketTypes.h" />
+		<Unit filename="include/PckCarData.h" />
 		<Unit filename="include/PckControllerButtonState.h" />
 		<Unit filename="include/ev3dev.h" />
 		<Unit filename="src/CarControl.cpp" />
 		<Unit filename="src/ClientSocketUDP.cpp" />
 		<Unit filename="src/Packet.cpp" />
+		<Unit filename="src/PckCarData.cpp" />
 		<Unit filename="src/PckControllerButtonState.cpp" />
 		<Unit filename="src/ev3dev.cpp" />
 		<Unit filename="udr.cpp" />
