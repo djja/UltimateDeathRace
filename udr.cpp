@@ -8,7 +8,7 @@
 CarControl mCarControl;
 ClientSocketUDP mClientSocket;
 
-bool mPassedFinishLine, mOnFinishLine, mIsSlowedByHit, mUsingPowerUp, mProgramRunning, mGameStarted, mPassedCheckpoint;    // Gamestarted var is used to reset the gamelogic vars
+bool mPassedFinishLine, mOnFinishLine, mIsSlowedByHit, mUsingPowerUp, mProgramRunning, mGameStarted, mPassedCheckpoint, mOnCheckpoint;    // Gamestarted var is used to reset the gamelogic vars
 char mCollectedMiniguns, mCollectedSpeedUps, mCollectedSlowDowns, mCurrentPowerUp, mPowerUpAmmo;
 
 void ResetGameLogic(){
@@ -19,6 +19,7 @@ void ResetGameLogic(){
     mPowerUpAmmo = 0;
     mPassedFinishLine = false;
     mOnFinishLine = false;
+    mOnCheckpoint = false;
     mIsSlowedByHit = false;
     mUsingPowerUp = false;
     mCarControl.FireMinigun(false);
@@ -161,6 +162,7 @@ int main(){
     mPowerUpAmmo = 0;
     mPassedFinishLine = false;
     mOnFinishLine = false;
+    mOnCheckpoint = false;
     mIsSlowedByHit = false;
     mUsingPowerUp = false;
     mGameStarted = false;
@@ -196,8 +198,8 @@ int main(){
         int colorRight = mCarControl.GetColor(mCarControl.rightSensor);
 
         // Check for checkpoint line
-        if((colorLeft == color_checkpoint || colorRight == color_checkpoint) && !mOnFinishLine){    // Should check if both sensors have seen the line
-            mOnFinishLine = true;
+        if((colorLeft == color_checkpoint || colorRight == color_checkpoint) && ! mOnCheckpoint){    // Should check if both sensors have seen the line
+            mOnCheckpoint = true;
             if(!mPassedCheckpoint){
                 ev3dev::sound::play("~/drop/CHKPOINT.WAV", false);
                 mPassedCheckpoint = true;
@@ -205,9 +207,8 @@ int main(){
                 // Player should drive over finish line first
                 ev3dev::sound::play("~/drop/WRONGCP.WAV", false);
             }
-
         }else if(colorLeft != color_checkpoint && colorRight != color_checkpoint)
-            mOnFinishLine = false;
+            mOnCheckpoint = false;
 
         // Check for finish line
         if((colorLeft == color_finishLine || colorRight == color_finishLine) && !mOnFinishLine){
